@@ -14,13 +14,15 @@ import {
 // --- הגדרות FIREBASE ---
 // עליך להדביק כאן את ה-config שקיבלת מ-Firebase Console
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyCe1kKepWLp8yzGf7A0hTiik3ww2dOl3U8",
+  authDomain: "labor-emotional-apps-d4016.firebaseapp.com",
+  projectId: "labor-emotional-apps-d4016",
+  storageBucket: "labor-emotional-apps-d4016.firebasestorage.app",
+  messagingSenderId: "466148209394",
+  appId: "1:466148209394:web:2fbac969e9fa186c7f966b",
+  measurementId: "G-KYHTYD41B8"
 };
+
 
 const isFirebaseSetup = firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 let app, db, auth;
