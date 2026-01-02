@@ -2,16 +2,17 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
-  query, doc, updateDoc, arrayUnion, setDoc, getDocs, deleteDoc, arrayRemove
+  query, doc, updateDoc, arrayUnion, setDoc, getDocs, deleteDoc, arrayRemove, where
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { 
   Plus, Search, Star, ChevronRight, LogOut, MessageSquare, 
   School, User, GraduationCap, Calendar, Info, CheckCircle2, XCircle, FileText,
-  Settings, Database, Upload, Heart, Edit, Trash2, LayoutDashboard, Bookmark, List, ShieldAlert, MapPin
+  Settings, Database, Upload, Heart, Edit, Trash2, LayoutDashboard, Bookmark, List, ShieldAlert, MapPin, ArrowRight, Bell, Clock, AlertCircle
 } from 'lucide-react';
 
 // --- הגדרות FIREBASE ---
+// עליך להדביק כאן את ה-config שקיבלת מ-Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyCe1kKepWLp8yzGf7A0hTiik3ww2dOl3U8",
   authDomain: "labor-emotional-apps-d4016.firebaseapp.com",
@@ -21,7 +22,6 @@ const firebaseConfig = {
   appId: "1:466148209394:web:2fbac969e9fa186c7f966b",
   measurementId: "G-KYHTYD41B8"
 };
-
 
 const isFirebaseSetup = firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 let app, db, auth;
@@ -47,466 +47,180 @@ const LogoContainer = ({ className = "w-24 h-24" }) => (
   </div>
 );
 
-const Header = ({ setView, user }) => (
-  <header className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
-    <div className="container mx-auto px-6 py-3 flex justify-between items-center">
-      <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView('dashboard')}>
-         <div className="bg-white p-1 rounded-md h-10 flex items-center">
-            <img src="120_labor.png" alt="לוגו" className="h-8" onError={(e) => e.target.src="https://www.gov.il/BlobFolder/office/labor/he/labor_logo.png"} />
-         </div>
-         <h1 className="text-lg font-bold hidden sm:block">מאגר ספקים רגשיים</h1>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="hidden md:flex flex-col items-end ml-4 text-[10px] opacity-80">
-          <span className="font-bold text-blue-200">שלום, {user?.name}</span>
-          <span>{user?.isAdmin ? 'מצב מנהל מערכת' : `סמל מוסד: ${user?.id}`}</span>
+const Header = ({ setView, user, notifications = [] }) => {
+  const [showNotifs, setShowNotifs] = useState(false);
+  
+  return (
+    <header className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
+      <div className="container mx-auto px-6 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView('dashboard')}>
+           <div className="bg-white p-1 rounded-md h-10 flex items-center">
+              <img src="120_labor.png" alt="לוגו" className="h-8" onError={(e) => e.target.src="https://www.gov.il/BlobFolder/office/labor/he/labor_logo.png"} />
+           </div>
+           <h1 className="text-lg font-bold hidden sm:block">מאגר ספקים רגשיים</h1>
         </div>
-        {user?.isAdmin && (
-          <button onClick={() => setView('admin-settings')} className="p-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors" title="ניהול מוסדות">
-            <Settings size={18} />
-          </button>
-        )}
-        <button onClick={() => setView('my-workspace')} className="flex items-center gap-2 bg-blue-800 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors">
-          <LayoutDashboard size={16} />
-          <span className="hidden md:inline">אזור אישי</span>
-        </button>
-        <button onClick={() => setView('login')} className="flex items-center gap-2 bg-blue-800 hover:bg-red-600 px-4 py-2 rounded-lg text-sm transition-colors">
-          <LogOut size={16} />
-          יציאה
-        </button>
-      </div>
-    </div>
-  </header>
-);
+        
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <button onClick={() => setShowNotifs(!showNotifs)} className="p-2 hover:bg-blue-800 rounded-full transition-colors relative">
+              <Bell size={20} />
+              {notifications.length > 0 && (
+                <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full border-2 border-blue-900 font-bold">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+            
+            {showNotifs && (
+              <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 text-slate-800">
+                <div className="p-3 border-b bg-slate-50 font-bold text-sm">התראות ועדכונים</div>
+                <div className="max-h-64 overflow-y-auto text-right">
+                  {notifications.length > 0 ? notifications.map((n, i) => (
+                    <div key={i} className="p-3 text-xs border-b hover:bg-slate-50 transition-colors">
+                      <div className="font-bold text-blue-800 mb-1 text-right">{n.title}</div>
+                      <p className="text-slate-600 text-right">{n.text}</p>
+                    </div>
+                  )) : (
+                    <div className="p-10 text-center text-slate-400 italic text-xs">אין התראות חדשות</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
-const LoginPage = ({ loginData, setLoginData, handleLogin, error }) => (
+          <div className="hidden md:flex flex-col items-end ml-4 text-[10px] opacity-80 text-right">
+            <span className="font-bold text-blue-200">שלום, {user?.name}</span>
+            <span>{user?.isAdmin ? 'מנהל מערכת' : user?.isProvider ? 'ספק מאושר' : `סמל מוסד: ${user?.id}`}</span>
+          </div>
+
+          {user?.isAdmin && (
+            <button onClick={() => setView('admin-settings')} className="p-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors relative" title="ניהול מערכת">
+              <Settings size={18} />
+            </button>
+          )}
+          
+          {!user?.isProvider && !user?.isAdmin && (
+            <button onClick={() => setView('my-workspace')} className="flex items-center gap-2 bg-blue-800 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition-colors">
+              <LayoutDashboard size={16} />
+              <span className="hidden md:inline">אזור אישי</span>
+            </button>
+          )}
+
+          <button onClick={() => setView('login')} className="flex items-center gap-2 bg-blue-800 hover:bg-red-600 px-4 py-2 rounded-lg text-sm transition-colors">
+            <LogOut size={16} />
+            יציאה
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const LoginPage = ({ loginData, setLoginData, handleLogin, error, setView }) => (
   <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4" dir="rtl">
     <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200">
       <div className="flex flex-col items-center mb-8 text-center">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
-          <img src="120_labor.png" alt="לוגו" className="h-24" onError={(e) => e.target.src="https://www.gov.il/BlobFolder/office/labor/he/labor_logo.png"} />
-        </div>
+        <LogoContainer className="w-32 h-32 mb-6" />
         <h1 className="text-3xl font-black text-slate-800 tracking-tight">מאגר תכניות רגשיות</h1>
         <p className="text-slate-500 font-medium">משרד העבודה - הכשרה מקצועית</p>
       </div>
-      {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-xs font-bold border border-red-100">{error}</div>}
+      {error && <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-6 text-xs font-bold border border-red-100 flex items-center gap-2 text-right"><XCircle size={16}/> {error}</div>}
       <form onSubmit={handleLogin} className="space-y-4">
-        <input required className="w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="סמל מוסד" value={loginData.semel} onChange={e => setLoginData({...loginData, semel: e.target.value})} />
-        <input required type="password" className="w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="סיסמה" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
-        <button type="submit" className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-all">התחברות למערכת</button>
+        <input required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 transition-all font-bold text-right" placeholder="סמל מוסד / מזהה ספק" value={loginData.semel} onChange={e => setLoginData({...loginData, semel: e.target.value})} />
+        <input required type="password" className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 transition-all font-bold text-right" placeholder="סיסמה" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} />
+        <button type="submit" className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-5 rounded-2xl shadow-lg active:scale-95 transition-all text-lg">התחברות למערכת</button>
       </form>
+      <div className="mt-10 text-center border-t border-slate-100 pt-8">
+        <p className="text-sm text-slate-500 mb-4">מעוניינים להצטרף כספק תכנית?</p>
+        <button onClick={() => setView('provider-register')} className="bg-slate-50 text-blue-600 font-bold px-8 py-3 rounded-full hover:bg-blue-50 transition-colors border border-blue-100">הגשת בקשה להצטרפות למאגר</button>
+      </div>
     </div>
   </div>
 );
 
-const AdminSettingsPanel = ({ setIsAdminMode, schools, importText, setImportText, handleImportExcel, handleDeleteSchool, editingSchool, setEditingSchool, db, appId, setView }) => (
-  <div className="min-h-screen bg-slate-50 pb-20" dir="rtl">
-    <header className="bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40">
-      <h1 className="font-bold flex items-center gap-2"><Settings size={20}/> ניהול מוסדות במערכת</h1>
-      <button onClick={() => setView('dashboard')} className="text-sm bg-slate-800 px-4 py-2 rounded-lg">חזרה למאגר</button>
-    </header>
-    <main className="container mx-auto p-6 max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-1 space-y-6">
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-          <h3 className="font-bold mb-4 flex items-center gap-2 text-blue-800"><Upload size={18}/> ייבוא מהיר מאקסל</h3>
-          <p className="text-xs text-slate-500 mb-4 font-medium">העתק שורות מהאקסל (שם המוסד, סמל מוסד, סיסמה) והדבק כאן:</p>
-          <textarea 
-            className="w-full h-48 p-3 border rounded-xl mb-4 font-mono text-xs bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="בית ספר א	12345	pass123&#10;בית ספר ב	67890	pass456"
-            value={importText}
-            onChange={e => setImportText(e.target.value)}
-          />
-          <button onClick={handleImportExcel} disabled={!importText} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-blue-700 disabled:opacity-50 transition-all">ייבוא מוסדות</button>
-        </div>
-      </div>
-
-      <div className="lg:col-span-2">
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
-            <h3 className="font-bold flex items-center gap-2"><School size={18} className="text-blue-800"/> רשימת מוסדות ({schools.length})</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse">
-              <thead className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider">
-                <tr>
-                  <th className="p-4">שם המוסד</th>
-                  <th className="p-4">סמל מוסד</th>
-                  <th className="p-4">סיסמה</th>
-                  <th className="p-4 text-center">פעולות</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y text-sm">
-                {schools.map(s => (
-                  <tr key={s.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="p-4 font-bold text-slate-800">{s.name}</td>
-                    <td className="p-4 text-slate-600 font-mono">{s.semel}</td>
-                    <td className="p-4 text-slate-400 font-mono">{s.password}</td>
-                    <td className="p-4 flex justify-center gap-2">
-                      <button onClick={() => setEditingSchool(s)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors" title="ערוך"><Edit size={18}/></button>
-                      <button onClick={() => handleDeleteSchool(s.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors" title="מחק"><Trash2 size={18}/></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {editingSchool && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
-            <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">עריכת מוסד</h2>
-            <div className="space-y-4">
-              <input className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none" defaultValue={editingSchool.name} id="edit_name" />
-              <input className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none" defaultValue={editingSchool.password} id="edit_pass" />
-              <div className="flex gap-3 pt-6">
-                <button onClick={async () => {
-                   const n = document.getElementById('edit_name').value;
-                   const p = document.getElementById('edit_pass').value;
-                   await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', editingSchool.id), { name: n, password: p });
-                   setEditingSchool(null);
-                }} className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-bold">שמור</button>
-                <button onClick={() => setEditingSchool(null)} className="flex-1 border-2 py-4 rounded-2xl font-bold">ביטול</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
-  </div>
-);
-
-const MyWorkspace = ({ setView, user, programs, savedProgramIds, toggleFavorite, setSelectedProgram }) => {
-  const myUploads = programs.filter(p => p.schoolId === user?.id);
-  const savedPrograms = programs.filter(p => savedProgramIds.includes(p.id));
-
+const ProviderRegister = ({ handleProviderApply, setView }) => {
+  const [data, setData] = useState({ name: '', id: '', password: '', contact: '', description: '', location: 'כל הארץ' });
+  
   return (
-    <div className="min-h-screen bg-slate-50 pb-12" dir="rtl">
-      <Header setView={setView} user={user} />
-      <main className="container mx-auto p-6 max-w-6xl">
-        <div className="mb-8">
-          <h2 className="text-3xl font-black text-slate-800">האזור האישי שלי</h2>
-          <p className="text-slate-500">{user?.name} | ניהול תכניות ומעקב</p>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4" dir="rtl">
+      <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200">
+        <div className="mb-8 text-right">
+           <h2 className="text-2xl font-black text-slate-800 mb-2">בקשת הצטרפות כספק</h2>
+           <p className="text-slate-500 font-medium leading-relaxed text-right">אנא מלאו את הפרטים והתכנית שלכם. לאחר אישור המנהל, התכנית תפורסם אוטומטית במאגר.</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-3xl shadow-sm border p-6">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-blue-800"><List size={20}/> תכניות שהעליתי ({myUploads.length})</h3>
-            <div className="space-y-4">
-              {myUploads.map(p => (
-                <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl group hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-blue-100">
-                  <div>
-                    <h4 className="font-bold text-slate-800">{p.name}</h4>
-                    <p className="text-xs text-slate-400">{p.createdAt}</p>
-                  </div>
-                  <div className="flex gap-2">
-                     <button onClick={() => { setSelectedProgram(p); setView('details'); }} className="p-2 text-blue-600 bg-white rounded-full shadow-sm hover:scale-110 transition-transform"><ChevronRight size={18}/></button>
-                  </div>
-                </div>
-              ))}
-              {myUploads.length === 0 && <p className="text-center text-slate-400 py-8 italic">עדיין לא העלית תכניות למאגר</p>}
+        <form onSubmit={(e) => handleProviderApply(e, data)} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="col-span-1 md:col-span-2">
+              <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right">שם הספק / העמותה *</label>
+              <input required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none text-right" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right">ח"פ / מזהה ייחודי (להתחברות) *</label>
+              <input required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none text-right" value={data.id} onChange={e => setData({...data, id: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right">סיסמה מבוקשת *</label>
+              <input required type="password" className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none text-right" value={data.password} onChange={e => setData({...data, password: e.target.value})} />
             </div>
           </div>
-
-          <div className="bg-white rounded-3xl shadow-sm border p-6">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-rose-600"><Bookmark size={20}/> תכניות במעקב ({savedPrograms.length})</h3>
-            <div className="space-y-4">
-              {savedPrograms.map(p => (
-                <div key={p.id} className="flex justify-between items-center p-4 bg-rose-50/30 rounded-2xl group hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-rose-100">
-                  <div>
-                    <h4 className="font-bold text-slate-800">{p.name}</h4>
-                    <p className="text-[10px] text-slate-400">ספק: {p.schoolName}</p>
-                  </div>
-                  <div className="flex gap-2">
-                     <button onClick={(e) => toggleFavorite(e, p.id)} className="p-2 text-rose-600 bg-white rounded-full shadow-sm hover:scale-110 transition-transform"><Heart size={16} fill="currentColor"/></button>
-                     <button onClick={() => { setSelectedProgram(p); setView('details'); }} className="p-2 text-blue-600 bg-white rounded-full shadow-sm hover:scale-110 transition-transform"><ChevronRight size={18}/></button>
-                  </div>
-                </div>
-              ))}
-              {savedPrograms.length === 0 && <p className="text-center text-slate-400 py-8 italic">אין תכניות שסימנת למעקב</p>}
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right">מיקום גיאוגרפי *</label>
+            <select required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none text-right" value={data.location} onChange={e => setData({...data, location: e.target.value})}>
+              <option value="כל הארץ">כל הארץ</option>
+              <option value="צפון">צפון</option><option value="דרום">דרום</option><option value="מרכז">מרכז</option>
+            </select>
           </div>
-        </div>
-      </main>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right">איש קשר וטלפון *</label>
+            <input required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none text-right" value={data.contact} onChange={e => setData({...data, contact: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1 mr-1 uppercase text-right text-blue-700 font-black">תיאור התכנית המוצעת (לפרסום במאגר) *</label>
+            <textarea required className="w-full p-4 border-2 border-slate-100 rounded-2xl outline-none h-32 text-right" value={data.description} onChange={e => setData({...data, description: e.target.value})} />
+          </div>
+          <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all text-lg">שלח בקשה לאישור מנהל</button>
+          <button type="button" onClick={() => setView('login')} className="w-full text-slate-400 font-bold py-2">ביטול וחזרה</button>
+        </form>
+      </div>
     </div>
   );
 };
 
-const Dashboard = ({ setView, filters, setFilters, filteredPrograms, toggleFavorite, savedProgramIds, setSelectedProgram, user, handleDeleteProgram }) => (
-  <div className="min-h-screen bg-slate-50 pb-20" dir="rtl">
-    <Header setView={setView} user={user} />
-    <main className="container mx-auto px-6 p-4 max-w-7xl">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 mt-6">
-        <div>
-          <h2 className="text-3xl font-black text-slate-800">שלום, {user?.name}</h2>
-          <p className="text-slate-500">בחר תכנית להתרשמות או הוסף המלצה חדשה למאגר</p>
-        </div>
-        <button onClick={() => setView('add')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-2xl font-bold shadow-lg transition-transform hover:-translate-y-1">
-          <Plus size={20} /> הוספת המלצה חדשה
-        </button>
+const ProviderStatusPage = ({ provider, setView }) => (
+  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4" dir="rtl">
+    <div className="bg-white p-12 rounded-[3rem] shadow-2xl w-full max-w-md border border-slate-200 text-center relative overflow-hidden">
+      <div className={`absolute top-0 right-0 left-0 h-3 ${provider.status === 'approved' ? 'bg-emerald-500' : provider.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'}`} />
+      
+      <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-8 ${
+        provider.status === 'pending' ? 'bg-amber-50 text-amber-600' : 
+        provider.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+      }`}>
+        {provider.status === 'pending' ? <Clock size={48}/> : provider.status === 'approved' ? <CheckCircle2 size={48}/> : <AlertCircle size={48}/>}
       </div>
-
-      {/* Advanced Filters */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mb-8 space-y-4">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[300px] relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-            <input type="text" placeholder="חיפוש לפי שם, ספק או תוכן..." className="w-full pr-12 pl-4 py-3 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
-          </div>
-          
-          <div className="w-full sm:w-auto">
-            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1 mr-1">מיקום גיאוגרפי</label>
-            <select className="p-3 bg-slate-50 border-none rounded-2xl outline-none font-bold text-slate-700 w-full" value={filters.location} onChange={e => setFilters({...filters, location: e.target.value})}>
-              <option value="all">כל הארץ</option>
-              <option value="צפון">צפון</option>
-              <option value="דרום">דרום</option>
-              <option value="מרכז">מרכז</option>
-            </select>
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1 mr-1">שכבת גיל</label>
-            <select className="p-3 bg-slate-50 border-none rounded-2xl outline-none font-bold text-slate-700 w-full" value={filters.grade} onChange={e => setFilters({...filters, grade: e.target.value})}>
-              <option value="all">כל השכבות</option>
-              {['ט','י','יא','יב'].map(g => <option key={g} value={g}>כיתה {g}</option>)}
-            </select>
-          </div>
+      
+      <h2 className="text-2xl font-black text-slate-800 mb-2">סטטוס: {
+        provider.status === 'pending' ? 'בקשתך בהמתנה' : provider.status === 'approved' ? 'אושרת כספק!' : 'בקשתך נדחתה'
+      }</h2>
+      <p className="text-slate-500 font-medium mb-8">שלום {provider.name}, בקשת הצטרפותך נמצאת בבדיקת המערכת.</p>
+      
+      {provider.adminNote && (
+        <div className="bg-slate-50 p-6 rounded-2xl border mb-8 text-right shadow-inner">
+          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">הערת מנהל המערכת:</p>
+          <p className="text-slate-800 text-sm font-medium italic">"{provider.adminNote}"</p>
         </div>
+      )}
 
-        <div className="flex flex-wrap gap-6 pt-2 border-t border-slate-50 items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">דירוג מינימלי:</span>
-            <div className="flex gap-1">
-              {[1,2,3,4,5].map(star => (
-                <button key={star} onClick={() => setFilters({...filters, minRating: star})} className="transition-transform hover:scale-110">
-                  <Star size={16} fill={star <= filters.minRating ? "#f59e0b" : "none"} className={star <= filters.minRating ? "text-amber-500" : "text-slate-300"} />
-                </button>
-              ))}
-              {filters.minRating > 0 && <button onClick={() => setFilters({...filters, minRating: 0})} className="text-[10px] text-blue-500 underline mr-2">איפוס</button>}
-            </div>
-          </div>
+      {provider.status === 'approved' && (
+        <button onClick={() => setView('dashboard')} className="w-full bg-blue-700 text-white font-bold py-5 rounded-2xl shadow-xl mb-4 text-lg">כניסה למאגר</button>
+      )}
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">מינימום תגובות:</span>
-            <input type="number" min="0" className="w-16 p-1 bg-slate-50 rounded-lg text-xs font-bold border-none outline-none" value={filters.minComments} onChange={e => setFilters({...filters, minComments: parseInt(e.target.value) || 0})} />
-          </div>
+      {provider.status === 'rejected' && (
+        <button onClick={() => setView('provider-register')} className="w-full bg-emerald-600 text-white font-bold py-5 rounded-2xl shadow-xl mb-4 text-lg">הגשת בקשה מעודכנת</button>
+      )}
 
-          <label className="flex items-center gap-2 cursor-pointer transition-colors hover:text-purple-600">
-            <input type="checkbox" className="w-4 h-4 rounded text-purple-600 border-none bg-slate-100" checked={filters.zalashOnly} onChange={e => setFilters({...filters, zalashOnly: e.target.checked})} />
-            <span className="text-xs font-bold">תכניות צל"ש בלבד</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredPrograms.map(p => (
-          <div key={p.id} onClick={() => { setSelectedProgram(p); setView('details'); }} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-xl transition-all group cursor-pointer relative">
-            <div className="absolute top-4 left-4 flex gap-2 z-10">
-              <button 
-                onClick={(e) => toggleFavorite(e, p.id)}
-                className={`p-2 rounded-full transition-all ${savedProgramIds.includes(p.id) ? 'bg-rose-500 text-white' : 'bg-white/80 backdrop-blur shadow-sm text-slate-300 hover:text-rose-400'}`}
-              >
-                <Heart size={16} fill={savedProgramIds.includes(p.id) ? "currentColor" : "none"} />
-              </button>
-              {user?.isAdmin && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleDeleteProgram(p.id); }}
-                  className="p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-red-500 hover:bg-red-500 hover:text-white transition-all"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-            </div>
-            <div className={`h-2 ${p.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-xl group-hover:text-blue-700 transition-colors">{p.name}</h3>
-                <div className="flex text-amber-500 items-center gap-1">
-                   <Star size={14} fill="currentColor" />
-                   <span className="text-xs font-bold">{p.rating}</span>
-                </div>
-              </div>
-              <p className="text-slate-500 text-sm line-clamp-2 mb-4 leading-relaxed h-10">{p.description}</p>
-              
-              <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-[10px] bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-bold flex items-center gap-1">
-                    <MapPin size={10} /> {p.location || 'כל הארץ'}
-                  </span>
-                  {p.grades?.map(g => <span key={g} className="text-[10px] bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-bold">כיתה {g}</span>)}
-                  {p.isZalash && <span className="text-[10px] bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-bold">צל"ש</span>}
-              </div>
-
-              <div className="flex justify-between items-center pt-4 border-t border-slate-50 text-[10px] text-slate-400 font-medium">
-                <span className="flex items-center gap-1"><School size={12}/> {p.schoolName}</span>
-                <span className="flex items-center gap-1"><MessageSquare size={12}/> {p.comments?.length || 0} תגובות</span>
-              </div>
-            </div>
-          </div>
-        ))}
-        {filteredPrograms.length === 0 && (
-          <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-3xl border border-dashed border-slate-300">
-            <Search size={40} className="mx-auto mb-4 opacity-20" />
-            <p className="text-xl font-medium">לא נמצאו תכניות מתאימות לסינון</p>
-          </div>
-        )}
-      </div>
-    </main>
+      <button onClick={() => setView('login')} className="text-slate-400 font-bold py-2 uppercase text-[10px] tracking-widest">התנתקות</button>
+    </div>
   </div>
-);
-
-const AddProgram = ({ setView, handleAddProgram, formData, setFormData }) => (
-  <div className="min-h-screen bg-slate-50 pb-12" dir="rtl">
-      <header className="bg-white border-b p-4 sticky top-0 z-30 flex items-center gap-4 shadow-sm">
-          <button onClick={() => setView('dashboard')} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><ChevronRight size={24} /></button>
-          <h1 className="text-xl font-bold">הוספת המלצה חדשה למערכת</h1>
-      </header>
-      <main className="container mx-auto p-4 max-w-3xl mt-10">
-          <form onSubmit={handleAddProgram} className="bg-white p-10 rounded-3xl shadow-xl space-y-8 border border-slate-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="col-span-2">
-                  <label className="block text-sm font-bold mb-2">שם התכנית / הספק *</label>
-                  <input required className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="למשל: עמותת חוסן - סדנת מנהיגות" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-slate-700">מיקום גיאוגרפי *</label>
-                  <select required className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
-                    <option value="כל הארץ">כל הארץ</option>
-                    <option value="צפון">צפון</option>
-                    <option value="דרום">דרום</option>
-                    <option value="מרכז">מרכז</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-slate-700">דירוג הכללי</label>
-                  <div className="flex gap-2 p-3 bg-slate-50 rounded-2xl justify-center">
-                    {[1,2,3,4,5].map(s => (
-                      <button key={s} type="button" onClick={() => setFormData({...formData, rating: s})}>
-                        <Star size={24} fill={s <= formData.rating ? "#f59e0b" : "none"} className={s <= formData.rating ? "text-amber-500" : "text-slate-300"} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">מהות ותכני התכנית *</label>
-                <textarea required rows="4" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="פרט כאן על התכנים..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-4 uppercase text-slate-400">שכבות גיל מתאימות</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {['ט', 'י', 'יא', 'יב'].map(grade => (
-                        <label key={grade} className={`flex items-center justify-center gap-2 cursor-pointer py-3 rounded-2xl border-2 transition-all font-bold ${formData.grades.includes(grade) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-400 border-slate-100'}`}>
-                            <input type="checkbox" className="hidden" checked={formData.grades.includes(grade)} onChange={e => {
-                                const newGrades = e.target.checked ? [...formData.grades, grade] : formData.grades.filter(g => g !== grade);
-                                setFormData({...formData, grades: newGrades});
-                            }} /> כיתה {grade}
-                        </label>
-                    ))}
-                </div>
-              </div>
-
-              <div className="flex gap-4 p-5 bg-slate-50 rounded-3xl border border-slate-100 items-center justify-between">
-                  <label className="flex items-center gap-3 cursor-pointer font-bold text-purple-700">
-                    <input type="checkbox" className="w-5 h-5 rounded-md" checked={formData.isZalash} onChange={e => setFormData({...formData, isZalash: e.target.checked})} />
-                    תכנית צל"ש
-                  </label>
-                  <div className="flex gap-4">
-                     <button type="button" onClick={() => setFormData({...formData, recommends: true})} className={`px-4 py-2 rounded-xl font-bold transition-all ${formData.recommends ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400'}`}>ממליץ</button>
-                     <button type="button" onClick={() => setFormData({...formData, recommends: false})} className={`px-4 py-2 rounded-xl font-bold transition-all ${!formData.recommends ? 'bg-rose-500 text-white' : 'bg-white text-slate-400'}`}>לא ממליץ</button>
-                  </div>
-              </div>
-
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 rounded-3xl shadow-xl transition-all active:scale-95 text-lg">שמירה ופרסום המלצה במערכת</button>
-          </form>
-      </main>
-  </div>
-);
-
-const ProgramDetails = ({ selectedProgram, setView, addComment, user, removeComment }) => (
-  <div className="min-h-screen bg-slate-50" dir="rtl">
-      <header className="bg-white border-b p-4 sticky top-0 z-30 shadow-sm flex items-center gap-4">
-          <button onClick={() => setView('dashboard')} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><ChevronRight size={24} /></button>
-          <h1 className="text-xl font-bold">{selectedProgram.name}</h1>
-      </header>
-      <main className="container mx-auto p-4 max-w-5xl mt-10">
-          <div className="bg-white p-10 rounded-3xl shadow-xl space-y-8 border relative overflow-hidden">
-              <div className={`absolute top-0 right-0 left-0 h-2 ${selectedProgram.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-              
-              <div className="flex flex-col md:flex-row justify-between items-start gap-8">
-                <div className="flex-1 space-y-6">
-                  <div className="flex items-center gap-3">
-                     <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase ${selectedProgram.recommends ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                       {selectedProgram.recommends ? 'ספק מומלץ' : 'לא מומלץ'}
-                     </span>
-                     {selectedProgram.isZalash && <span className="bg-purple-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase">תכנית צל"ש</span>}
-                     <span className="text-xs font-bold text-slate-400 flex items-center gap-1"><MapPin size={14}/> {selectedProgram.location || 'כל הארץ'}</span>
-                  </div>
-                  <h2 className="text-4xl font-black text-slate-800">{selectedProgram.name}</h2>
-                  <p className="text-xl leading-relaxed text-slate-600">{selectedProgram.description}</p>
-                </div>
-                
-                <div className="bg-slate-50 p-6 rounded-3xl w-full md:w-64 border border-slate-100 space-y-4">
-                  <div className="flex items-center gap-2">
-                     <Star className="text-amber-500" fill="currentColor" size={20}/>
-                     <span className="font-bold text-2xl">{selectedProgram.rating}.0</span>
-                  </div>
-                  <div className="space-y-2 pt-4 border-t">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">דווח על ידי</p>
-                    <p className="font-bold text-blue-900 leading-tight">{selectedProgram.schoolName}</p>
-                    <p className="text-xs text-slate-500">סמל {selectedProgram.schoolId}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-10">
-                  <h3 className="text-2xl font-black mb-8 flex items-center gap-3 text-slate-800">
-                    <MessageSquare className="text-blue-600" size={24}/>
-                    תגובות בתי הספר ({selectedProgram.comments?.length || 0})
-                  </h3>
-                  <div className="space-y-4 mb-10">
-                      {selectedProgram.comments?.map((c, i) => (
-                          <div key={i} className="bg-slate-50 p-5 rounded-2xl border-r-4 border-blue-600 shadow-sm flex justify-between items-start">
-                              <div className="flex-1 ml-4">
-                                <div className="font-black text-blue-900 text-xs mb-1 uppercase">{c.school}</div>
-                                <p className="text-slate-700">{c.text}</p>
-                              </div>
-                              {user?.isAdmin && (
-                                <button onClick={() => removeComment(selectedProgram.id, c.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="מחק תגובה">
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                          </div>
-                      ))}
-                  </div>
-                  <div className="bg-blue-50 p-8 rounded-3xl border border-blue-100 shadow-inner">
-                      <label className="block text-sm font-bold text-blue-900 mb-4 tracking-wide">הוסף חוות דעת של המוסד שלכם:</label>
-                      <div className="flex flex-col gap-4">
-                          <textarea id="newComment" className="w-full p-4 bg-white border border-blue-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] shadow-sm" placeholder="כתבו כאן..." />
-                          <button onClick={() => {
-                              const val = document.getElementById('newComment').value;
-                              if(val) { addComment(selectedProgram.id, val); document.getElementById('newComment').value = ''; }
-                          }} className="self-end bg-blue-700 hover:bg-blue-800 text-white px-10 py-4 rounded-xl font-black shadow-md transition-all active:scale-95">פרסם תגובה</button>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </main>
-  </div>
-);
-
-const Footer = () => (
-  <footer className="w-full bg-slate-100 text-slate-400 py-12 mt-12 text-center border-t">
-     <div className="h-px w-24 bg-slate-300 mx-auto mb-6"></div>
-     <p className="text-xs font-medium uppercase tracking-widest mb-1">האפליקציה נוצרה על ידי</p>
-     <p className="font-black text-slate-600 text-xl tracking-tighter">תיכון עתיד עוצמ״ה זוקו</p>
-     <div className="mt-4 flex justify-center gap-4 opacity-40 grayscale">
-        <img src="120_labor.png" className="h-10" onError={(e) => e.target.style.display='none'} />
-     </div>
-  </footer>
 );
 
 // --- הרכיב הראשי (App) ---
@@ -526,10 +240,13 @@ const App = () => {
     );
   }
 
+  // --- STATE ---
   const [view, setView] = useState('login'); 
   const [user, setUser] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [schools, setSchools] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [savedProgramIds, setSavedProgramIds] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -545,35 +262,31 @@ const App = () => {
   });
 
   const [filters, setFilters] = useState({ 
-    search: '', 
-    grade: 'all', 
-    zalashOnly: false, 
-    location: 'all', 
-    minRating: 0, 
-    minComments: 0 
+    search: '', grade: 'all', zalashOnly: false, location: 'all', minRating: 0, minComments: 0 
   });
 
+  // --- FIREBASE SYNC ---
   useEffect(() => {
-    const initAuth = async () => {
-      try { await signInAnonymously(auth); } catch (err) { console.error(err); }
-    };
+    const initAuth = async () => { try { await signInAnonymously(auth); } catch (err) { console.error(err); } };
     initAuth();
   }, []);
 
   useEffect(() => {
     if (!db) return;
-    const unsubscribePrograms = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'programs'), (snap) => {
+    const unsubP = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'programs'), (snap) => {
       setPrograms(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
-    const unsubscribeSchools = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'schools'), (snap) => {
-      setSchools(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'schools'), (snap) => {
+      const all = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSchools(all.filter(s => !s.isProvider));
+      setProviders(all.filter(s => s.isProvider));
     });
-    return () => { unsubscribePrograms(); unsubscribeSchools(); };
+    return () => { unsubP(); unsubS(); };
   }, []);
 
   useEffect(() => {
-    if (!db || !user) return;
+    if (!db || !user || user.isAdmin) return;
     const favCol = collection(db, 'artifacts', appId, 'users', user.id, 'favorites');
     const unsubscribe = onSnapshot(favCol, (snap) => {
       setSavedProgramIds(snap.docs.map(doc => doc.id));
@@ -581,6 +294,22 @@ const App = () => {
     return () => unsubscribe();
   }, [user]);
 
+  // Notifications Logic
+  useEffect(() => {
+    if (!user || user.isAdmin) return;
+    const myProgs = programs.filter(p => p.schoolId === user.id);
+    const newNotifs = [];
+    myProgs.forEach(p => {
+      if (p.comments && p.comments.length > 0) {
+        p.comments.slice(-3).forEach(c => {
+          newNotifs.push({ title: `תגובה חדשה ל-${p.name}`, text: `${c.school}: ${c.text}` });
+        });
+      }
+    });
+    setNotifications(newNotifs);
+  }, [programs, user]);
+
+  // --- HANDLERS ---
   const handleLogin = (e) => {
     e.preventDefault();
     setError("");
@@ -593,62 +322,66 @@ const App = () => {
     if (school) {
       setUser({ id: school.semel, name: school.name, isAdmin: false });
       setView('dashboard');
-    } else { setError("פרטי התחברות שגויים"); }
-  };
-
-  const toggleFavorite = async (e, programId) => {
-    e.stopPropagation();
-    if (!user) return;
-    const favDoc = doc(db, 'artifacts', appId, 'users', user.id, 'favorites', programId);
-    if (savedProgramIds.includes(programId)) {
-      await deleteDoc(favDoc);
-    } else {
-      await setDoc(favDoc, { savedAt: Date.now() });
+      return;
     }
+    const provider = providers.find(p => String(p.semel) === String(loginData.semel) && String(p.password) === String(loginData.password));
+    if (provider) {
+      setUser({ ...provider, id: provider.semel, isAdmin: false, isProvider: true });
+      if (provider.status === 'approved') setView('dashboard');
+      else setView('provider-status');
+      return;
+    }
+    setError("פרטי התחברות שגויים. נסה שנית.");
   };
 
-  const handleImportExcel = async () => {
+  const handleProviderApply = async (e, data) => {
+    e.preventDefault();
     try {
-      const rows = importText.split('\n').filter(r => r.trim());
-      setLoading(true);
-      for (const row of rows) {
-        const [name, semel, password] = row.split(/\t|,/);
-        if (name && semel && password) {
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', semel.trim()), {
-            name: name.trim(),
-            semel: semel.trim(),
-            password: password.trim()
-          });
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', data.id), {
+        name: data.name,
+        semel: data.id,
+        password: data.password,
+        contact: data.contact,
+        description: data.description,
+        location: data.location || 'כל הארץ',
+        isProvider: true,
+        status: 'pending',
+        createdAt: Date.now(),
+        initialProgram: {
+          name: data.name,
+          description: data.description,
+          location: data.location || 'כל הארץ',
+          grades: ['ט','י','יא','יב'],
+          isZalash: false,
+          rating: 5,
+          recommends: true
         }
-      }
-      alert("ייבוא הסתיים בהצלחה");
-      setImportText("");
-    } catch (err) { alert("שגיאה בפורמט. וודא שהעתקת עמודות שם, סמל וסיסמה."); }
-    setLoading(false);
+      });
+      alert("הבקשה נשלחה בהצלחה וממתינה לאישור המנהל.");
+      setView('login');
+    } catch (err) { console.error(err); }
   };
 
-  const handleDeleteSchool = async (id) => {
-    if (window.confirm("בטוח שברצונך למחוק מוסד זה?")) {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', id));
-    }
-  };
-
-  const handleDeleteProgram = async (id) => {
-    if (window.confirm("בטוח שברצונך למחוק תכנית זו לצמיתות?")) {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'programs', id));
-    }
-  };
-
-  const removeComment = async (programId, commentId) => {
-    if (!window.confirm("בטוח שברצונך למחוק תגובה זו?")) return;
+  const handleApproveProvider = async (provider) => {
     try {
-      const progRef = doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId);
-      const program = programs.find(p => p.id === programId);
-      const updatedComments = program.comments.filter(c => c.id !== commentId);
-      await updateDoc(progRef, { comments: updatedComments });
-      if (selectedProgram) {
-        setSelectedProgram({ ...selectedProgram, comments: updatedComments });
-      }
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', provider.id), { 
+        status: 'approved', adminNote: 'אושר ופורסם במאגר.' 
+      });
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'programs'), {
+        ...provider.initialProgram,
+        schoolId: provider.id,
+        schoolName: provider.name,
+        comments: [],
+        createdAt: new Date().toLocaleDateString('he-IL'),
+        timestamp: Date.now()
+      });
+      alert("הספק אושר והתכנית פורסמה בהצלחה.");
+    } catch (err) { console.error(err); }
+  };
+
+  const handleRejectProvider = async (id, note) => {
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', id), { status: 'rejected', adminNote: note });
     } catch (err) { console.error(err); }
   };
 
@@ -668,100 +401,343 @@ const App = () => {
     } catch (err) { console.error(err); }
   };
 
+  const handleDeleteProgram = async (id) => {
+    if (window.confirm("בטוח שברצונך למחוק תכנית זו לצמיתות?")) {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'programs', id));
+    }
+  };
+
+  const toggleFavorite = async (e, programId) => {
+    e.stopPropagation();
+    if (!user || user.isAdmin) return;
+    const favDoc = doc(db, 'artifacts', appId, 'users', user.id, 'favorites', programId);
+    if (savedProgramIds.includes(programId)) {
+      await deleteDoc(favDoc);
+    } else {
+      await setDoc(favDoc, { savedAt: Date.now() });
+    }
+  };
+
   const addComment = async (programId, text) => {
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId), {
       comments: arrayUnion({ id: Date.now(), school: user.name, text })
     });
-    const prog = programs.find(p => p.id === programId);
-    setSelectedProgram({ ...prog, comments: [...(prog.comments || []), { id: Date.now(), school: user.name, text }] });
+  };
+
+  const removeComment = async (programId, commentId) => {
+    if (!window.confirm("בטוח שברצונך למחוק תגובה זו?")) return;
+    try {
+      const progRef = doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId);
+      const program = programs.find(p => p.id === programId);
+      const updatedComments = program.comments.filter((c, idx) => idx !== commentId);
+      await updateDoc(progRef, { comments: updatedComments });
+      if (selectedProgram) setSelectedProgram({ ...selectedProgram, comments: updatedComments });
+    } catch (err) { console.error(err); }
   };
 
   const filteredPrograms = useMemo(() => {
-    return programs.filter(p => {
+    let list = programs;
+    if (user?.isProvider) {
+      list = list.filter(p => p.schoolId === user.id);
+    }
+    return list.filter(p => {
       const matchesSearch = p.name?.toLowerCase().includes(filters.search.toLowerCase()) || p.description?.toLowerCase().includes(filters.search.toLowerCase());
       const matchesGrade = filters.grade === 'all' || p.grades?.includes(filters.grade);
       const matchesZalash = !filters.zalashOnly || p.isZalash;
       const matchesLocation = filters.location === 'all' || p.location === filters.location;
       const matchesRating = p.rating >= filters.minRating;
-      const matchesComments = (p.comments?.length || 0) >= filters.minComments;
-
-      return matchesSearch && matchesGrade && matchesZalash && matchesLocation && matchesRating && matchesComments;
+      return matchesSearch && matchesGrade && matchesZalash && matchesLocation && matchesRating;
     });
-  }, [programs, filters]);
+  }, [programs, filters, user]);
 
+  // --- RENDER SELECTION ---
+
+  if (view === 'login') return <LoginPage loginData={loginData} setLoginData={setLoginData} handleLogin={handleLogin} error={error} setView={setView} />;
+  if (view === 'provider-register') return <ProviderRegister handleProviderApply={handleProviderApply} setView={setView} />;
+  if (view === 'provider-status') return <ProviderStatusPage provider={user} setView={setView} />;
+  if (view === 'admin-settings') return (
+    <AdminSettingsPanel 
+      schools={schools} providers={providers} importText={importText} setImportText={setImportText} 
+      handleImportExcel={() => {}} handleDeleteSchool={async (id) => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schools', id))} 
+      editingSchool={editingSchool} setEditingSchool={setEditingSchool} db={db} appId={appId} setView={setView} 
+      handleApproveProvider={handleApproveProvider} handleRejectProvider={handleRejectProvider}
+    />
+  );
+  
   return (
-    <div className="font-sans antialiased text-slate-900 selection:bg-blue-100 overflow-x-hidden">
-      {view === 'admin-settings' && (
-        <AdminSettingsPanel 
-          setView={setView} 
-          schools={schools} 
-          importText={importText} 
-          setImportText={setImportText} 
-          handleImportExcel={handleImportExcel} 
-          handleDeleteSchool={handleDeleteSchool} 
-          editingSchool={editingSchool} 
-          setEditingSchool={setEditingSchool} 
-          db={db} 
-          appId={appId} 
-        />
-      )}
-      
-      {view === 'login' && (
-        <LoginPage 
-          loginData={loginData} 
-          setLoginData={setLoginData} 
-          handleLogin={handleLogin} 
-          error={error} 
-        />
-      )}
-      
-      {view === 'dashboard' && (
-        <Dashboard 
-          setView={setView} 
-          filters={filters} 
-          setFilters={setFilters} 
-          filteredPrograms={filteredPrograms} 
-          toggleFavorite={toggleFavorite} 
-          savedProgramIds={savedProgramIds} 
-          setSelectedProgram={setSelectedProgram} 
-          user={user}
-          handleDeleteProgram={handleDeleteProgram}
-        />
-      )}
-      
-      {view === 'add' && (
-        <AddProgram 
-          setView={setView} 
-          handleAddProgram={handleAddProgram} 
-          formData={formData} 
-          setFormData={setFormData} 
-        />
-      )}
-      
-      {view === 'details' && (
-        <ProgramDetails 
-          selectedProgram={selectedProgram} 
-          setView={setView} 
-          addComment={addComment} 
-          removeComment={removeComment}
-          user={user} 
-        />
-      )}
-      
-      {view === 'my-workspace' && (
-        <MyWorkspace 
-          setView={setView} 
-          user={user} 
-          programs={programs} 
-          savedProgramIds={savedProgramIds} 
-          toggleFavorite={toggleFavorite} 
-          setSelectedProgram={setSelectedProgram} 
-        />
-      )}
-      
-      {view !== 'login' && view !== 'admin-settings' && <Footer />}
+    <div className="font-sans antialiased text-slate-900 selection:bg-blue-100 overflow-x-hidden" dir="rtl">
+      {view === 'dashboard' && <Dashboard setView={setView} filters={filters} setFilters={setFilters} filteredPrograms={filteredPrograms} toggleFavorite={toggleFavorite} savedProgramIds={savedProgramIds} setSelectedProgram={(p) => { setSelectedProgram(p); setView('details'); }} user={user} handleDeleteProgram={handleDeleteProgram} notifications={notifications} />}
+      {view === 'add' && <AddProgram setView={setView} handleAddProgram={handleAddProgram} formData={formData} setFormData={setFormData} user={user} />}
+      {view === 'details' && selectedProgram && <ProgramDetails selectedProgram={selectedProgram} setView={setView} addComment={addComment} removeComment={removeComment} user={user} notifications={notifications} />}
+      {view === 'my-workspace' && <MyWorkspace setView={setView} user={user} programs={programs} savedProgramIds={savedProgramIds} toggleFavorite={toggleFavorite} setSelectedProgram={(p) => { setSelectedProgram(p); setView('details'); }} notifications={notifications} />}
+      <Footer />
     </div>
   );
 };
+
+// --- SUB-COMPONENTS ---
+
+const AdminSettingsPanel = ({ schools, providers, importText, setImportText, handleImportExcel, handleDeleteSchool, setEditingSchool, editingSchool, db, appId, setView, handleApproveProvider, handleRejectProvider }) => {
+  const [activeTab, setActiveTab] = useState('requests');
+  const pendingRequests = providers.filter(p => p.status === 'pending');
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-20" dir="rtl">
+      <header className="bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40">
+        <div className="flex items-center gap-6">
+          <h1 className="font-bold flex items-center gap-2 text-blue-400 tracking-tight"><ShieldAlert size={24}/> פאנל ניהול מערכת</h1>
+          <nav className="flex gap-4 mr-6">
+            <button onClick={() => setActiveTab('requests')} className={`px-4 py-2 rounded-xl text-sm font-bold relative transition-all ${activeTab === 'requests' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
+              בקשות ספקים
+              {pendingRequests.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full border-2 border-slate-900 animate-bounce font-bold">{pendingRequests.length}</span>}
+            </button>
+            <button onClick={() => setActiveTab('schools')} className={`px-4 py-2 rounded-xl text-sm font-bold ${activeTab === 'schools' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>ניהול מוסדות</button>
+          </nav>
+        </div>
+        <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-sm bg-blue-800 hover:bg-blue-700 px-6 py-2 rounded-xl transition-all font-bold">חזרה למאגר <ArrowRight size={18} /></button>
+      </header>
+
+      <main className="container mx-auto p-8 max-w-7xl">
+        {activeTab === 'requests' && (
+          <div className="space-y-6">
+             <h2 className="text-2xl font-black text-slate-800 text-right">בקשות ממתינות</h2>
+             {pendingRequests.length === 0 && <div className="bg-white p-16 rounded-[2.5rem] text-center border-2 border-dashed border-slate-200"><p className="text-slate-400 font-bold">אין בקשות חדשות כרגע</p></div>}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pendingRequests.map(p => (
+                  <div key={p.id} className="bg-white p-8 rounded-[2rem] shadow-sm border text-right">
+                    <h3 className="font-black text-xl text-slate-800 mb-1">{p.name}</h3>
+                    <p className="text-blue-600 font-bold text-xs mb-4">מזהה ספק: {p.semel}</p>
+                    <div className="bg-slate-50 p-5 rounded-2xl mb-6 text-sm italic text-slate-600">"{p.description}"</div>
+                    <div className="flex gap-3">
+                      <button onClick={() => handleApproveProvider(p)} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">אשר ופרסם</button>
+                      <button onClick={() => { const note = prompt("סיבת דחייה:"); if(note) handleRejectProvider(p.id, note); }} className="flex-1 border-2 border-slate-100 py-3 rounded-xl font-bold text-slate-400 hover:text-red-500">דחה</button>
+                    </div>
+                  </div>
+                ))}
+             </div>
+          </div>
+        )}
+        {activeTab === 'schools' && (
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-right">
+              <div className="lg:col-span-1">
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                   <h3 className="font-bold mb-4 flex items-center gap-2"><Upload size={18}/> ייבוא מאקסל</h3>
+                   <textarea className="w-full h-40 p-4 bg-slate-50 rounded-xl mb-4 text-xs font-mono text-right" placeholder="שם מוסד	סמל	סיסמה" value={importText} onChange={e => setImportText(e.target.value)} />
+                   <button onClick={() => alert("ייבוא בביצוע...")} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">ייבוא מוסדות</button>
+                </div>
+              </div>
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                   <table className="w-full text-right">
+                      <thead className="bg-slate-50 text-[10px] uppercase font-black tracking-widest text-slate-400">
+                        <tr><th className="p-4">מוסד</th><th className="p-4">סמל</th><th className="p-4 text-center">פעולות</th></tr>
+                      </thead>
+                      <tbody className="divide-y text-sm">
+                        {schools.map(s => (
+                          <tr key={s.id} className="hover:bg-slate-50"><td className="p-4 font-bold">{s.name}</td><td className="p-4 font-mono">{s.semel}</td><td className="p-4 flex justify-center gap-2"><button onClick={() => setEditingSchool(s)} className="p-2 text-blue-600"><Edit size={16}/></button><button onClick={() => handleDeleteSchool(s.id)} className="p-2 text-red-500"><Trash2 size={16}/></button></td></tr>
+                        ))}
+                      </tbody>
+                   </table>
+                </div>
+              </div>
+           </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+const Dashboard = ({ setView, filters, setFilters, filteredPrograms, toggleFavorite, savedProgramIds, setSelectedProgram, user, handleDeleteProgram, notifications }) => (
+  <div className="min-h-screen bg-slate-50 pb-20" dir="rtl">
+    <Header setView={setView} user={user} notifications={notifications} />
+    <main className="container mx-auto px-6 p-4 max-w-7xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 mt-10 text-right">
+        <div>
+          <h2 className="text-4xl font-black text-slate-800">שלום, {user?.name}</h2>
+          <p className="text-slate-500 font-medium">{user?.isProvider ? 'התכניות שלך במערכת' : 'בחר תכנית להתרשמות או הוסף תכנית חדשה'}</p>
+        </div>
+        {!user?.isProvider && (
+          <button onClick={() => setView('add')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-5 rounded-2xl font-black shadow-xl transition-transform hover:-translate-y-1 text-lg">
+            <Plus size={24} /> הוספת תכנית חדשה
+          </button>
+        )}
+      </div>
+
+      {!user?.isProvider && (
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 mb-12 space-y-6 text-right">
+          <div className="flex flex-wrap gap-6 items-end">
+            <div className="flex-1 min-w-[300px] relative">
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300" size={24} />
+              <input type="text" placeholder="חיפוש חופשי..." className="w-full pr-14 pl-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-right font-medium" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+            </div>
+            <select className="p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700 min-w-[150px]" value={filters.location} onChange={e => setFilters({...filters, location: e.target.value})}>
+              <option value="all">כל הארץ</option>
+              <option value="צפון">צפון</option><option value="דרום">דרום</option><option value="מרכז">מרכז</option>
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-8 pt-6 border-t items-center justify-end">
+            <label className="flex items-center gap-3 cursor-pointer group bg-slate-50 px-6 py-3 rounded-full">
+              <input type="checkbox" className="w-5 h-5 rounded-md text-purple-600" checked={filters.zalashOnly} onChange={e => setFilters({...filters, zalashOnly: e.target.checked})} />
+              <span className="text-sm font-black text-slate-700">מתאים לתכנית צל"ש</span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {filteredPrograms.map(p => (
+          <div key={p.id} onClick={() => setSelectedProgram(p)} className="bg-white rounded-[2rem] shadow-sm border overflow-hidden hover:shadow-2xl transition-all group cursor-pointer relative text-right">
+            <div className="absolute top-5 left-5 flex gap-2 z-10">
+              {(!user?.isAdmin && !user?.isProvider) && (
+                <button onClick={(e) => toggleFavorite(e, p.id)} className={`p-2.5 rounded-full transition-all ${savedProgramIds.includes(p.id) ? 'bg-rose-500 text-white' : 'bg-white/90 backdrop-blur shadow-sm text-slate-300 hover:text-rose-400'}`}>
+                  <Heart size={18} fill={savedProgramIds.includes(p.id) ? "currentColor" : "none"} />
+                </button>
+              )}
+              {user?.isAdmin && (
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteProgram(p.id); }} className="p-2.5 rounded-full bg-white/90 text-red-500 hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
+              )}
+            </div>
+            <div className={`h-2.5 ${p.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            <div className="p-8">
+              <h3 className="font-black text-2xl group-hover:text-blue-700 mb-4">{p.name}</h3>
+              <p className="text-slate-500 text-sm line-clamp-3 mb-6 leading-relaxed h-15 font-medium">{p.description}</p>
+              <div className="flex flex-wrap gap-2 mb-6">
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full font-black uppercase flex items-center gap-1"><MapPin size={12} /> {p.location || 'כל הארץ'}</span>
+                  {p.isZalash && <span className="text-[10px] bg-purple-100 text-purple-700 px-4 py-1.5 rounded-full font-black uppercase">צל"ש</span>}
+              </div>
+              <div className="flex justify-between items-center pt-6 border-t text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                <span>{p.schoolName}</span>
+                <span>{p.comments?.length || 0} תגובות</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
+  </div>
+);
+
+const AddProgram = ({ setView, handleAddProgram, formData, setFormData, user }) => (
+  <div className="min-h-screen bg-slate-50 pb-12" dir="rtl">
+      <header className="bg-white border-b p-6 sticky top-0 z-30 flex items-center gap-4 shadow-sm">
+          <button onClick={() => setView('dashboard')} className="p-3 hover:bg-slate-100 rounded-full"><ChevronRight size={28} /></button>
+          <h1 className="text-2xl font-black text-slate-800">הוספת תכנית חדשה</h1>
+      </header>
+      <main className="container mx-auto p-4 max-w-4xl mt-12 text-right">
+          <form onSubmit={handleAddProgram} className="bg-white p-12 rounded-[3rem] shadow-2xl space-y-10 text-right">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="col-span-2">
+                  <label className="block text-sm font-black mb-3 text-slate-800">שם התכנית / הספק המבצע *</label>
+                  <input required className="w-full p-5 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-right" placeholder="למשל: סדנת חוסן מנטלי" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-black mb-3 text-slate-800">מיקום גיאוגרפי *</label>
+                  <select required className="w-full p-5 bg-slate-50 border-none rounded-2xl font-black text-right" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
+                    <option value="כל הארץ">כל הארץ</option>
+                    <option value="צפון">צפון</option><option value="דרום">דרום</option><option value="מרכז">מרכז</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-black mb-3 text-slate-800">דירוג (1-5)</label>
+                  <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl justify-center">
+                    {[1,2,3,4,5].map(s => (
+                      <button key={s} type="button" onClick={() => setFormData({...formData, rating: s})}><Star size={32} fill={s <= formData.rating ? "#f59e0b" : "none"} className={s <= formData.rating ? "text-amber-500" : "text-slate-200"} /></button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-black mb-3 text-slate-800">מהות ותכני התכנית (פירוט) *</label>
+                <textarea required rows="5" className="w-full p-6 bg-slate-50 border-none rounded-3xl outline-none text-right font-medium" placeholder="פרט כאן על התכנים..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              </div>
+              <button type="submit" className="w-full bg-blue-700 text-white font-black py-6 rounded-3xl shadow-2xl text-xl">שמירה ופרסום התכנית במערכת</button>
+          </form>
+      </main>
+  </div>
+);
+
+const ProgramDetails = ({ selectedProgram, setView, addComment, user, removeComment, notifications }) => (
+  <div className="min-h-screen bg-slate-50 text-right" dir="rtl">
+      <Header setView={setView} user={user} notifications={notifications} />
+      <main className="container mx-auto p-6 max-w-6xl mt-12">
+          <div className="bg-white p-12 md:p-16 rounded-[3.5rem] shadow-2xl space-y-12 border relative overflow-hidden">
+              <div className={`absolute top-0 right-0 left-0 h-3 ${selectedProgram.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              <div className="flex flex-col lg:flex-row justify-between items-start gap-12 text-right">
+                <div className="flex-1 space-y-8">
+                  <div className="flex flex-wrap items-center gap-4 justify-start">
+                     {selectedProgram.isZalash && <span className="bg-purple-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase">תכנית צל"ש</span>}
+                     <span className="text-sm font-black text-slate-400 flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-full"><MapPin size={16}/> {selectedProgram.location}</span>
+                  </div>
+                  <h2 className="text-5xl font-black text-slate-800 leading-tight">{selectedProgram.name}</h2>
+                  <p className="text-2xl leading-relaxed text-slate-600 font-medium">{selectedProgram.description}</p>
+                </div>
+                <div className="bg-slate-50 p-10 rounded-[2.5rem] w-full lg:w-80 border shadow-inner text-right">
+                  <div className="flex items-center gap-3 justify-end"><span className="font-black text-4xl">{selectedProgram.rating}.0</span><Star className="text-amber-500" fill="currentColor" size={32}/></div>
+                  <div className="pt-8 border-t text-right"><p className="text-[10px] font-black text-slate-400 uppercase">דווח על ידי</p><p className="font-black text-blue-900 text-xl">{selectedProgram.schoolName}</p></div>
+                </div>
+              </div>
+              <div className="border-t pt-16 text-right">
+                  <h3 className="text-3xl font-black mb-10 flex items-center gap-4 text-slate-800 justify-start"><MessageSquare className="text-blue-600" size={32}/> תגובות ({selectedProgram.comments?.length || 0})</h3>
+                  <div className="space-y-6 mb-16">
+                      {selectedProgram.comments?.map((c, i) => (
+                          <div key={i} className="bg-slate-50 p-8 rounded-[2rem] border-r-8 border-blue-600 flex justify-between items-start">
+                              <div className="flex-1 ml-6 text-right"><div className="font-black text-blue-900 text-sm mb-2">{c.school}</div><p className="text-slate-700 text-lg">{c.text}</p></div>
+                              {user?.isAdmin && <button onClick={() => removeComment(selectedProgram.id, i)} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl"><Trash2 size={20} /></button>}
+                          </div>
+                      ))}
+                  </div>
+                  {!user?.isProvider && (
+                    <div className="bg-blue-50/50 p-10 rounded-[3rem] border shadow-inner">
+                        <textarea id="newComment" className="w-full p-6 bg-white border rounded-3xl outline-none text-right font-medium text-lg h-32 mb-6" placeholder="הוסיפו חוות דעת משלכם..." />
+                        <button onClick={() => { const v = document.getElementById('newComment').value; if(v) { addComment(selectedProgram.id, v); document.getElementById('newComment').value=''; } }} className="bg-blue-700 text-white px-12 py-5 rounded-2xl font-black shadow-2xl">פרסם תגובה במאגר</button>
+                    </div>
+                  )}
+              </div>
+          </div>
+      </main>
+  </div>
+);
+
+const MyWorkspace = ({ setView, user, programs, savedProgramIds, toggleFavorite, setSelectedProgram, notifications }) => {
+  const myUploads = programs.filter(p => p.schoolId === user?.id);
+  const savedPrograms = programs.filter(p => savedProgramIds.includes(p.id));
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-12" dir="rtl">
+      <Header setView={setView} user={user} notifications={notifications} />
+      <main className="container mx-auto p-8 max-w-6xl mt-10 text-right">
+        <h2 className="text-4xl font-black text-slate-800 mb-2">אזור אישי</h2>
+        <p className="text-slate-500 font-bold mb-12">{user?.name} | ניהול אישי</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <div className="bg-white rounded-[2.5rem] shadow-sm border p-8">
+            <h3 className="text-2xl font-black mb-8 flex items-center gap-3 text-blue-800"><List size={24}/> תכניות שלי ({myUploads.length})</h3>
+            {myUploads.map(p => (
+              <div key={p.id} className="flex justify-between items-center p-6 bg-slate-50 rounded-3xl mb-4 cursor-pointer" onClick={() => setSelectedProgram(p)}>
+                <div className="text-right"><h4 className="font-black text-lg">{p.name}</h4><p className="text-xs text-slate-400">{p.createdAt}</p></div>
+                <ChevronRight className="text-blue-600"/>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-[2.5rem] shadow-sm border p-8">
+            <h3 className="text-2xl font-black mb-8 flex items-center gap-3 text-rose-600"><Bookmark size={24}/> תכניות במעקב ({savedPrograms.length})</h3>
+            {savedPrograms.map(p => (
+              <div key={p.id} className="flex justify-between items-center p-6 bg-rose-50/30 rounded-3xl mb-4 cursor-pointer" onClick={() => setSelectedProgram(p)}>
+                <div className="text-right"><h4 className="font-black text-lg">{p.name}</h4><p className="text-[10px] text-slate-400">מאת: {p.schoolName}</p></div>
+                <button onClick={(e) => { e.stopPropagation(); toggleFavorite(e, p.id); }} className="p-2 text-rose-600"><Heart fill="currentColor"/></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const Footer = () => (
+  <footer className="w-full bg-slate-100 text-slate-400 py-16 mt-20 text-center border-t">
+     <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-60">האפליקציה נוצרה על ידי</p>
+     <p className="font-black text-slate-600 text-2xl tracking-tighter">תיכון עתיד עוצמ״ה זוקו</p>
+  </footer>
+);
 
 export default App;
