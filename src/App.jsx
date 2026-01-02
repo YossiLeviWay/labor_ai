@@ -14,13 +14,12 @@ import {
 // --- הגדרות FIREBASE ---
 // עליך להדביק כאן את ה-config שקיבלת מ-Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSyCe1kKepWLp8yzGf7A0hTiik3ww2dOl3U8",
-  authDomain: "labor-emotional-apps-d4016.firebaseapp.com",
-  projectId: "labor-emotional-apps-d4016",
-  storageBucket: "labor-emotional-apps-d4016.firebasestorage.app",
-  messagingSenderId: "466148209394",
-  appId: "1:466148209394:web:2fbac969e9fa186c7f966b",
-  measurementId: "G-KYHTYD41B8"
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
 };
 
 const isFirebaseSetup = firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
@@ -72,7 +71,7 @@ const Header = ({ setView, user, notifications = [] }) => {
             </button>
             
             {showNotifs && (
-              <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 text-slate-800">
+              <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 text-slate-800 shadow-blue-900/20">
                 <div className="p-3 border-b bg-slate-50 font-bold text-sm">התראות ועדכונים</div>
                 <div className="max-h-64 overflow-y-auto text-right">
                   {notifications.length > 0 ? notifications.map((n, i) => (
@@ -274,7 +273,8 @@ const App = () => {
   useEffect(() => {
     if (!db) return;
     const unsubP = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'programs'), (snap) => {
-      setPrograms(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPrograms(data);
       setLoading(false);
     });
     const unsubS = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'schools'), (snap) => {
@@ -284,6 +284,14 @@ const App = () => {
     });
     return () => { unsubP(); unsubS(); };
   }, []);
+
+  // Real-time update for Selected Program
+  useEffect(() => {
+    if (selectedProgram) {
+      const updated = programs.find(p => p.id === selectedProgram.id);
+      if (updated) setSelectedProgram(updated);
+    }
+  }, [programs]);
 
   useEffect(() => {
     if (!db || !user || user.isAdmin) return;
@@ -419,9 +427,39 @@ const App = () => {
   };
 
   const addComment = async (programId, text) => {
+    // 15-minute rate limit check
+    const now = Date.now();
+    const fifteenMins = 15 * 60 * 1000;
+    
+    // Check all programs for any comment by this user in last 15 mins
+    const recentComment = programs.some(p => 
+      p.comments?.some(c => c.schoolId === user.id && (now - c.id) < fifteenMins)
+    );
+
+    if (recentComment && !user.isAdmin) {
+      alert("ניתן לשלוח תגובה אחת כל 15 דקות. אנא המתינו.");
+      return;
+    }
+
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId), {
-      comments: arrayUnion({ id: Date.now(), school: user.name, text })
+      comments: arrayUnion({ 
+        id: now, 
+        school: user.name, 
+        schoolId: user.id, 
+        text 
+      })
     });
+  };
+
+  const editComment = async (programId, commentId, newText) => {
+    try {
+      const progRef = doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId);
+      const program = programs.find(p => p.id === programId);
+      const updatedComments = program.comments.map(c => 
+        c.id === commentId ? { ...c, text: newText, edited: true } : c
+      );
+      await updateDoc(progRef, { comments: updatedComments });
+    } catch (err) { console.error(err); }
   };
 
   const removeComment = async (programId, commentId) => {
@@ -429,9 +467,8 @@ const App = () => {
     try {
       const progRef = doc(db, 'artifacts', appId, 'public', 'data', 'programs', programId);
       const program = programs.find(p => p.id === programId);
-      const updatedComments = program.comments.filter((c, idx) => idx !== commentId);
+      const updatedComments = program.comments.filter((c) => c.id !== commentId);
       await updateDoc(progRef, { comments: updatedComments });
-      if (selectedProgram) setSelectedProgram({ ...selectedProgram, comments: updatedComments });
     } catch (err) { console.error(err); }
   };
 
@@ -468,7 +505,7 @@ const App = () => {
     <div className="font-sans antialiased text-slate-900 selection:bg-blue-100 overflow-x-hidden" dir="rtl">
       {view === 'dashboard' && <Dashboard setView={setView} filters={filters} setFilters={setFilters} filteredPrograms={filteredPrograms} toggleFavorite={toggleFavorite} savedProgramIds={savedProgramIds} setSelectedProgram={(p) => { setSelectedProgram(p); setView('details'); }} user={user} handleDeleteProgram={handleDeleteProgram} notifications={notifications} />}
       {view === 'add' && <AddProgram setView={setView} handleAddProgram={handleAddProgram} formData={formData} setFormData={setFormData} user={user} />}
-      {view === 'details' && selectedProgram && <ProgramDetails selectedProgram={selectedProgram} setView={setView} addComment={addComment} removeComment={removeComment} user={user} notifications={notifications} />}
+      {view === 'details' && selectedProgram && <ProgramDetails selectedProgram={selectedProgram} setView={setView} addComment={addComment} removeComment={removeComment} editComment={editComment} user={user} notifications={notifications} />}
       {view === 'my-workspace' && <MyWorkspace setView={setView} user={user} programs={programs} savedProgramIds={savedProgramIds} toggleFavorite={toggleFavorite} setSelectedProgram={(p) => { setSelectedProgram(p); setView('details'); }} notifications={notifications} />}
       <Footer />
     </div>
@@ -510,7 +547,7 @@ const AdminSettingsPanel = ({ schools, providers, importText, setImportText, han
                     <div className="bg-slate-50 p-5 rounded-2xl mb-6 text-sm italic text-slate-600">"{p.description}"</div>
                     <div className="flex gap-3">
                       <button onClick={() => handleApproveProvider(p)} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">אשר ופרסם</button>
-                      <button onClick={() => { const note = prompt("סיבת דחייה:"); if(note) handleRejectProvider(p.id, note); }} className="flex-1 border-2 border-slate-100 py-3 rounded-xl font-bold text-slate-400 hover:text-red-500">דחה</button>
+                      <button onClick={() => { const note = prompt("סיבת הדחייה:"); if(note) handleRejectProvider(p.id, note); }} className="flex-1 border-2 border-slate-100 py-3 rounded-xl font-bold text-slate-400 hover:text-red-500">דחה</button>
                     </div>
                   </div>
                 ))}
@@ -656,47 +693,82 @@ const AddProgram = ({ setView, handleAddProgram, formData, setFormData, user }) 
   </div>
 );
 
-const ProgramDetails = ({ selectedProgram, setView, addComment, user, removeComment, notifications }) => (
-  <div className="min-h-screen bg-slate-50 text-right" dir="rtl">
-      <Header setView={setView} user={user} notifications={notifications} />
-      <main className="container mx-auto p-6 max-w-6xl mt-12">
-          <div className="bg-white p-12 md:p-16 rounded-[3.5rem] shadow-2xl space-y-12 border relative overflow-hidden">
-              <div className={`absolute top-0 right-0 left-0 h-3 ${selectedProgram.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-              <div className="flex flex-col lg:flex-row justify-between items-start gap-12 text-right">
-                <div className="flex-1 space-y-8">
-                  <div className="flex flex-wrap items-center gap-4 justify-start">
-                     {selectedProgram.isZalash && <span className="bg-purple-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase">תכנית צל"ש</span>}
-                     <span className="text-sm font-black text-slate-400 flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-full"><MapPin size={16}/> {selectedProgram.location}</span>
-                  </div>
-                  <h2 className="text-5xl font-black text-slate-800 leading-tight">{selectedProgram.name}</h2>
-                  <p className="text-2xl leading-relaxed text-slate-600 font-medium">{selectedProgram.description}</p>
-                </div>
-                <div className="bg-slate-50 p-10 rounded-[2.5rem] w-full lg:w-80 border shadow-inner text-right">
-                  <div className="flex items-center gap-3 justify-end"><span className="font-black text-4xl">{selectedProgram.rating}.0</span><Star className="text-amber-500" fill="currentColor" size={32}/></div>
-                  <div className="pt-8 border-t text-right"><p className="text-[10px] font-black text-slate-400 uppercase">דווח על ידי</p><p className="font-black text-blue-900 text-xl">{selectedProgram.schoolName}</p></div>
-                </div>
-              </div>
-              <div className="border-t pt-16 text-right">
-                  <h3 className="text-3xl font-black mb-10 flex items-center gap-4 text-slate-800 justify-start"><MessageSquare className="text-blue-600" size={32}/> תגובות ({selectedProgram.comments?.length || 0})</h3>
-                  <div className="space-y-6 mb-16">
-                      {selectedProgram.comments?.map((c, i) => (
-                          <div key={i} className="bg-slate-50 p-8 rounded-[2rem] border-r-8 border-blue-600 flex justify-between items-start">
-                              <div className="flex-1 ml-6 text-right"><div className="font-black text-blue-900 text-sm mb-2">{c.school}</div><p className="text-slate-700 text-lg">{c.text}</p></div>
-                              {user?.isAdmin && <button onClick={() => removeComment(selectedProgram.id, i)} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl"><Trash2 size={20} /></button>}
-                          </div>
-                      ))}
-                  </div>
-                  {!user?.isProvider && (
-                    <div className="bg-blue-50/50 p-10 rounded-[3rem] border shadow-inner">
-                        <textarea id="newComment" className="w-full p-6 bg-white border rounded-3xl outline-none text-right font-medium text-lg h-32 mb-6" placeholder="הוסיפו חוות דעת משלכם..." />
-                        <button onClick={() => { const v = document.getElementById('newComment').value; if(v) { addComment(selectedProgram.id, v); document.getElementById('newComment').value=''; } }} className="bg-blue-700 text-white px-12 py-5 rounded-2xl font-black shadow-2xl">פרסם תגובה במאגר</button>
+const ProgramDetails = ({ selectedProgram, setView, addComment, user, removeComment, editComment, notifications }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+
+  const handleEdit = (c) => {
+    setEditingId(c.id);
+    setEditText(c.text);
+  };
+
+  const saveEdit = async () => {
+    await editComment(selectedProgram.id, editingId, editText);
+    setEditingId(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-right" dir="rtl">
+        <Header setView={setView} user={user} notifications={notifications} />
+        <main className="container mx-auto p-6 max-w-6xl mt-12">
+            <div className="bg-white p-12 md:p-16 rounded-[3.5rem] shadow-2xl space-y-12 border relative overflow-hidden">
+                <div className={`absolute top-0 right-0 left-0 h-3 ${selectedProgram.recommends ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <div className="flex flex-col lg:flex-row justify-between items-start gap-12 text-right">
+                  <div className="flex-1 space-y-8">
+                    <div className="flex flex-wrap items-center gap-4 justify-start">
+                       {selectedProgram.isZalash && <span className="bg-purple-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase">תכנית צל"ש</span>}
+                       <span className="text-sm font-black text-slate-400 flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-full"><MapPin size={16}/> {selectedProgram.location}</span>
                     </div>
-                  )}
-              </div>
-          </div>
-      </main>
-  </div>
-);
+                    <h2 className="text-5xl font-black text-slate-800 leading-tight">{selectedProgram.name}</h2>
+                    <p className="text-2xl leading-relaxed text-slate-600 font-medium">{selectedProgram.description}</p>
+                  </div>
+                  <div className="bg-slate-50 p-10 rounded-[2.5rem] w-full lg:w-80 border shadow-inner text-right">
+                    <div className="flex items-center gap-3 justify-end"><span className="font-black text-4xl">{selectedProgram.rating}.0</span><Star className="text-amber-500" fill="currentColor" size={32}/></div>
+                    <div className="pt-8 border-t text-right"><p className="text-[10px] font-black text-slate-400 uppercase">דווח על ידי</p><p className="font-black text-blue-900 text-xl">{selectedProgram.schoolName}</p></div>
+                  </div>
+                </div>
+                <div className="border-t pt-16 text-right">
+                    <h3 className="text-3xl font-black mb-10 flex items-center gap-4 text-slate-800 justify-start"><MessageSquare className="text-blue-600" size={32}/> תגובות ({selectedProgram.comments?.length || 0})</h3>
+                    <div className="space-y-6 mb-16">
+                        {selectedProgram.comments?.map((c, i) => (
+                            <div key={c.id} className="bg-slate-50 p-8 rounded-[2rem] border-r-8 border-blue-600 flex justify-between items-start group">
+                                <div className="flex-1 ml-6 text-right">
+                                  <div className="font-black text-blue-900 text-sm mb-2">{c.school} {c.edited && <span className="text-[10px] text-slate-400 mr-2">(נערך)</span>}</div>
+                                  {editingId === c.id ? (
+                                    <div className="flex flex-col gap-3">
+                                      <textarea className="w-full p-4 border rounded-xl" value={editText} onChange={e => setEditText(e.target.value)} />
+                                      <div className="flex gap-2">
+                                        <button onClick={saveEdit} className="bg-blue-600 text-white px-4 py-1 rounded-lg text-sm font-bold">שמור</button>
+                                        <button onClick={() => setEditingId(null)} className="bg-slate-200 px-4 py-1 rounded-lg text-sm font-bold">ביטול</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-slate-700 text-lg">{c.text}</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  {c.schoolId === user.id && editingId !== c.id && (
+                                    <button onClick={() => handleEdit(c)} className="p-2 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"><Edit size={18}/></button>
+                                  )}
+                                  {(user?.isAdmin || c.schoolId === user.id) && (
+                                    <button onClick={() => removeComment(selectedProgram.id, c.id)} className="p-3 text-red-500 hover:bg-red-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={20} /></button>
+                                  )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {!user?.isProvider && (
+                      <div className="bg-blue-50/50 p-10 rounded-[3rem] border shadow-inner">
+                          <textarea id="newComment" className="w-full p-6 bg-white border rounded-3xl outline-none text-right font-medium text-lg h-32 mb-6" placeholder="הוסיפו חוות דעת משלכם..." />
+                          <button onClick={() => { const v = document.getElementById('newComment').value; if(v) { addComment(selectedProgram.id, v); document.getElementById('newComment').value=''; } }} className="bg-blue-700 text-white px-12 py-5 rounded-2xl font-black shadow-2xl">פרסם תגובה במאגר</button>
+                      </div>
+                    )}
+                </div>
+            </div>
+        </main>
+    </div>
+  );
+};
 
 const MyWorkspace = ({ setView, user, programs, savedProgramIds, toggleFavorite, setSelectedProgram, notifications }) => {
   const myUploads = programs.filter(p => p.schoolId === user?.id);
